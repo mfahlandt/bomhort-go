@@ -91,6 +91,19 @@ The build takes `main` of this repository, daily and on every BOMHort docs
 deploy. This repository stays the source of truth: never copy these files into
 BOMHort, and fix docs here.
 
+Published files:
+
+| File | Content |
+|------|---------|
+| `README.md` | Overview, install, quick start |
+| `docs/API-COVERAGE.md` | Endpoint ↔ method matrix |
+| `docs/VEX.md` | VEX contract (scoping, matching) |
+| `docs/COMPATIBILITY.md` | Lockstep policy, BOMHort version table |
+| `docs/TESTING.md` | Unit, fake, integration, E2E |
+| `docs/MIGRATING-FROM-VEXVIPER.md` | How to: migrate from `internal/bomhort` |
+
+Keep this table and `_content.gotmpl` in BOMHort identical.
+
 Rules for those files:
 
 - **Start with exactly one `# H1`.** It is removed; the page title comes from
