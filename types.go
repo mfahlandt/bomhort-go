@@ -97,14 +97,24 @@ type SBOMDetail struct {
 // "*" (product-wide), all by plain string equality; never normalise VulnID
 // or PURL before writing VEX for them. See docs/VEX.md.
 type Vulnerability struct {
-	VulnID       string `json:"vuln_id"`
-	Severity     string `json:"severity"`
-	PURL         string `json:"purl"`
-	Summary      string `json:"summary"`
-	FixedVersion string `json:"fixed_version"`
-	SourceFile   string `json:"source_file"`
-	DiscoveredAt string `json:"discovered_at"`
-	VEXStatus    string `json:"vex_status,omitempty"`
+	VulnID string `json:"vuln_id"`
+	// CVEID is the CVE of the same flaw (VulnID itself when that is a CVE,
+	// else the smallest CVE among Aliases); empty when there is none.
+	// Aliases are every other OSV id of the flaw, sorted (#412, >= 0.8.0).
+	CVEID   string   `json:"cve_id,omitempty"`
+	Aliases []string `json:"aliases,omitempty"`
+	// DependencyScope is root|direct|transitive|unknown and DependencyDepth
+	// the shortest path from the described product (0 root, 1 direct, >= 2
+	// transitive; nil when unknown) (#444, >= 0.8.0).
+	DependencyScope string  `json:"dependency_scope,omitempty"`
+	DependencyDepth *uint32 `json:"dependency_depth,omitempty"`
+	Severity        string  `json:"severity"`
+	PURL            string  `json:"purl"`
+	Summary         string  `json:"summary"`
+	FixedVersion    string  `json:"fixed_version"`
+	SourceFile      string  `json:"source_file"`
+	DiscoveredAt    string  `json:"discovered_at"`
+	VEXStatus       string  `json:"vex_status,omitempty"`
 	// Effective VEX statement detail (#335, >= 0.7.0): one row per
 	// (vuln_id, purl); the statement with the newest vex_timestamp wins.
 	VEXJustification string `json:"vex_justification,omitempty"`
@@ -131,6 +141,9 @@ type DependencyNode struct {
 	PURL     string   `json:"purl"`
 	License  string   `json:"license"`
 	Children []uint32 `json:"children"`
+	// Stored dependency scope of the node (#444, >= 0.8.0); see Vulnerability.
+	DependencyScope string  `json:"dependency_scope,omitempty"`
+	DependencyDepth *uint32 `json:"dependency_depth,omitempty"`
 }
 
 // SBOMLicense is one entry of GET /api/v1/sboms/{id}/licenses.
@@ -262,7 +275,11 @@ type AffectedProject struct {
 	Version      string `json:"version"`
 	Severity     string `json:"severity"`
 	VEXStatus    string `json:"vex_status,omitempty"`
-	IsDirect     bool   `json:"is_direct"`
+	// IsDirect is true exactly when DependencyScope is "direct"; new
+	// clients should read DependencyScope (#444, >= 0.8.0).
+	IsDirect        bool    `json:"is_direct"`
+	DependencyScope string  `json:"dependency_scope,omitempty"`
+	DependencyDepth *uint32 `json:"dependency_depth,omitempty"`
 }
 
 // DependencyStats is GET /api/v1/stats/dependencies.
