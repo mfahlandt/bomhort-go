@@ -101,6 +101,7 @@ Published files:
 | `docs/COMPATIBILITY.md` | Lockstep policy, BOMHort version table |
 | `docs/TESTING.md` | Unit, fake, integration, E2E |
 | `docs/MIGRATING-FROM-VEXVIPER.md` | How to: migrate from `internal/bomhort` |
+| `docs/HOWTO-CI-UPLOAD.md` | How to: upload SBOM and VEX from CI |
 
 Keep this table and `_content.gotmpl` in BOMHort identical.
 
