@@ -11,7 +11,7 @@ bomhort-go is released in **lockstep with BOMHort**: `bomhort-go vX.Y.*` is the 
 
 | bomhort-go | Go | BOMHort | Tested in CI against |
 |---|---|---|---|
-| `main` (→ 0.8.0) | 1.25+ (`go.mod`) and latest stable | 0.8.x | **v0.8.0-rc.3** (pinned, every PR) · **`main`** (weekly) |
+| `v0.8.x` | 1.25+ (`go.mod`) and latest stable | 0.8.x | **v0.8.0** (pinned, every PR) · **`main`** (weekly) |
 
 The pinned BOMHort ref lives in `.github/workflows/e2e.yml` (`BOMHORT_PINNED_REF`). Bump it — and this table — when a new BOMHort release (or RC) ships; see [RELEASING.md](RELEASING.md).
 

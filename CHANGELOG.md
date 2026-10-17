@@ -4,7 +4,9 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
-Initial version, extracted from [VEXViper](https://github.com/seebom-labs/VEXViper)'s `internal/bomhort` and extended to the complete BOMHort API. Targets **BOMHort 0.8** (versions follow BOMHort, see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)); works against 0.7 for everything 0.7 has.
+## [0.8.0] - 2026-10-17
+
+Initial version, extracted from [VEXViper](https://github.com/seebom-labs/VEXViper)'s `internal/bomhort` and extended to the complete BOMHort API. Targets **BOMHort 0.8.0** (versions follow BOMHort, see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)); works against 0.7 for everything 0.7 has.
 
 ### Added
 
@@ -12,7 +14,7 @@ Initial version, extracted from [VEXViper](https://github.com/seebom-labs/VEXVip
 - BOMHort 0.8.0 API: `?scope=` filter (`VulnerabilityOptions`, `VulnerabilityListOptions`, `ScopeRoot`/`ScopeDirect`/`ScopeTransitive`/`ScopeUnknown`) on all finding lists (#444); `VulnerabilityReportCSV` (streamed `GET /api/v1/reports/vulnerabilities?format=csv`, #266); `LicenseSources` (`GET /api/v1/licenses/sources`); `LicenseViolationSummaries` (`?summary=true`).
 - BOMHort 0.8.0 fields: `CVEID`/`Aliases` on `Vulnerability`, `VEXStatement` and `SearchVulnerability` (#412); `DependencyScope`/`DependencyDepth` on `Vulnerability`, `DependencyNode` and `AffectedProject` (#444); `DependencyNode.LicenseSource`; `PackageScopes` on `SBOMLicense` and `LicenseViolation`; `LicenseViolation.UnapprovedCount`.
 - `bomhorttest`: `?scope=` filtering (400 on invalid values), `404` for the dependencies of an unknown SBOM (BOMHort 0.8 behaviour), raw `[]byte` bodies via `Handle` for CSV reports.
-- Release process in lockstep with BOMHort: `release.yml` refuses a `vX.Y.0` tag unless the pinned BOMHort in `e2e.yml` is `X.Y`; E2E pinned to BOMHort v0.8.0-rc.3.
+- Release process in lockstep with BOMHort: `release.yml` refuses a `vX.Y.0` tag unless the pinned BOMHort in `e2e.yml` is `X.Y`; E2E pinned to BOMHort v0.8.0.
 - `docs/HOWTO-CI-UPLOAD.md`: how to upload SBOM and VEX from CI and wait for ingestion.
 
 ### Changed
@@ -27,4 +29,5 @@ Initial version, extracted from [VEXViper](https://github.com/seebom-labs/VEXVip
 - Integration tests against a real BOMHort with strict decoding, docker-compose E2E harness, CI (lint, staticcheck, race tests on min/latest Go, coverage gate, govulncheck), weekly API-drift job against BOMHort `main`, release workflow.
 - Documentation: API coverage, VEX contract, compatibility, testing, migration from VEXViper, releasing, contributing, AGENTS.md.
 
-[Unreleased]: https://github.com/seebom-labs/bomhort-go/commits/main
+[Unreleased]: https://github.com/seebom-labs/bomhort-go/compare/v0.8.0...main
+[0.8.0]: https://github.com/seebom-labs/bomhort-go/releases/tag/v0.8.0
