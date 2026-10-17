@@ -149,6 +149,7 @@ The fake implements health probes, auth, pagination and filters, SBOM reads, dow
 | [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | Supported Go and BOMHort versions, lockstep versioning, behaviour on older BOMHort |
 | [docs/TESTING.md](docs/TESTING.md) | Unit tests, the fake server, integration and E2E tests, API drift detection |
 | [docs/MIGRATING-FROM-VEXVIPER.md](docs/MIGRATING-FROM-VEXVIPER.md) | Moving from VEXViper's `internal/bomhort` |
+| [docs/HOWTO-CI-UPLOAD.md](docs/HOWTO-CI-UPLOAD.md) | How to: upload SBOM and VEX from CI and wait for ingestion |
 | [docs/RELEASING.md](docs/RELEASING.md) | Release process |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) | How to contribute (humans and coding agents) |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
