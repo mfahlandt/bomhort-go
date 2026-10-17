@@ -8,6 +8,8 @@ Initial version, extracted from [VEXViper](https://github.com/seebom-labs/VEXVip
 
 ### Added
 
+- BOMHort 0.8.0 fields: `Vulnerability.CVEID`/`Aliases` (#412) and `DependencyScope`/`DependencyDepth` on `Vulnerability`, `DependencyNode` and `AffectedProject` (#444).
+
 - Client for every public BOMHort api-gateway route: health probes; SBOM listing, lookup, detail, findings, dependencies, licenses, VEX statements, download (buffered and streaming); uploads of SBOM and VEX documents with ownership, tags, parent and source attribution; source-attribution `PATCH`; fleet-wide vulnerabilities, VEX statements and affected projects; projects (incl. unreleased detail, SBOMs, vulnerabilities, packages, parent groups), tags, clusters, namespaces, fleet; dashboard, dependency and version-skew statistics; search, package search/detail, archived packages; license compliance, violations, exceptions and policy.
 - Typed errors (`APIError`, `IsNotFound`, `IsBadRequest`, `IsUnauthorized`, `IsForbidden`, `IsRateLimited`, `IsUnavailable`, `StatusCode`).
 - Iterator-based pagination (`ListX` / `X` / `AllX`, `Paginate`, `Collect`).
