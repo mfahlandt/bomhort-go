@@ -46,7 +46,7 @@ It needs `AUTH_ENABLED=true` (uploads), a writable SBOM directory and internet a
 4. uploads three OpenVEX documents — explicitly scoped with a subcomponent, scoped by product resolution, and product-wide — and waits until BOMHort applies each one exactly as documented;
 5. calls every remaining endpoint.
 
-All responses are decoded with `WithStrictDecoding()`. Endpoints marked *unreleased* are skipped when the server answers `404`. `BOMHORT_IT_TIMEOUT` (default `5m`) bounds each wait.
+All responses are decoded with `WithStrictDecoding()`. Routes newer than the server under test (marked `>= 0.8.0` in the docs) are skipped when it answers `404`. `BOMHORT_IT_TIMEOUT` (default `5m`) bounds each wait.
 
 ### Running BOMHort locally
 
@@ -59,7 +59,7 @@ BOMHORT_SRC=~/src/BOMHort ./hack/e2e-bomhort.sh --keep -run TestVEX   # keep sta
 docker compose -p bomhort-go-e2e -f hack/docker-compose.e2e.yml down -v  # tear down a kept stack
 ```
 
-Published images work too: `BOMHORT_IMAGE_PREFIX=ghcr.io/seebom-labs/bomhort/ BOMHORT_IMAGE_TAG=0.7.1`. On failure, compose logs are written to `.e2e/logs/`. SELinux hosts are handled (the bind mount is relabelled).
+Published images work too: `BOMHORT_IMAGE_PREFIX=ghcr.io/seebom-labs/bomhort/ BOMHORT_IMAGE_TAG=0.8.0-rc.3`. On failure, compose logs are written to `.e2e/logs/`. SELinux hosts are handled (the bind mount is relabelled).
 
 ## API drift detection
 
@@ -71,4 +71,4 @@ BOMHort's API evolves on `main`. Drift shows up in three ways, all caught by `e2
 | Removed or renamed route | the call fails (`404`/`405`) |
 | Changed semantics (e.g. VEX scoping) | integration assertions fail |
 
-Pull requests run against `BOMHORT_PINNED_REF` (a release) so they stay green; the weekly schedule adds BOMHort `main`, and `workflow_dispatch` accepts any ref. When the `main` job fails: update `types.go`/methods (mark new things *unreleased*), `endpoints_test.go`, `bomhorttest` if behaviour changed, the integration test and [API-COVERAGE.md](API-COVERAGE.md).
+Pull requests run against `BOMHORT_PINNED_REF` (the BOMHort release or RC the client targets, see [COMPATIBILITY.md](COMPATIBILITY.md)) so they stay green; the weekly schedule adds BOMHort `main`, and `workflow_dispatch` accepts any ref. When the `main` job fails: update `types.go`/methods (doc comment with the BOMHort version), `endpoints_test.go`, `bomhorttest` if behaviour changed, the integration test and [API-COVERAGE.md](API-COVERAGE.md); the full checklist is in [RELEASING.md](RELEASING.md).

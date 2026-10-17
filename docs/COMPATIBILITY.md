@@ -1,34 +1,38 @@
 # Compatibility & versioning
 
-## Supported versions
+## Versions follow BOMHort
 
-| bomhort-go | Go | BOMHort (tested in CI) | Notes |
+bomhort-go is released in **lockstep with BOMHort**: `bomhort-go vX.Y.*` is the client for `BOMHort X.Y.*`.
+
+- **Major.minor** is BOMHort's. `v0.8.0` ships when BOMHort 0.8.0 is final and covers its complete public API; a BOMHort minor without API changes still gets a (trivial) bomhort-go minor so the mapping stays obvious.
+- **Patch** is ours: client fixes, `bomhorttest` improvements, docs. `v0.8.3` still targets BOMHort 0.8.x.
+- **Pre-releases** (`v0.8.0-rc.N`) track BOMHort release candidates when a consumer needs them early.
+- A newer client works against the previous BOMHort minor for everything that minor has (new routes answer `404` → `IsNotFound`, new fields are empty, new query parameters are ignored). An older client works against a newer BOMHort because decoding is lenient by default.
+
+| bomhort-go | Go | BOMHort | Tested in CI against |
 |---|---|---|---|
-| `main` / 0.1.x | 1.25+ (`go.mod`) and latest stable | **0.7.1** (pinned, every PR) · **`main`** (weekly) | Works with 0.6.x for read endpoints; uploads, `PATCH` and VEX scoping need ≥ 0.7.0 |
+| `main` (→ 0.8.0) | 1.25+ (`go.mod`) and latest stable | 0.8.x | **v0.8.0-rc.3** (pinned, every PR) · **`main`** (weekly) |
 
-The pinned BOMHort ref lives in `.github/workflows/e2e.yml` (`BOMHORT_PINNED_REF`). Bump it — and this table — when a new BOMHort release ships.
+The pinned BOMHort ref lives in `.github/workflows/e2e.yml` (`BOMHORT_PINNED_REF`). Bump it — and this table — when a new BOMHort release (or RC) ships; see [RELEASING.md](RELEASING.md).
 
-## Unreleased BOMHort API
+## Running against BOMHort 0.7
 
-The client already covers endpoints and fields that are on BOMHort `main` but not yet released. On released servers they behave as follows:
+Routes and fields BOMHort added in 0.8.0 are marked `>= 0.8.0` in the Go doc comments and in [API-COVERAGE.md](API-COVERAGE.md). On a 0.7 gateway:
 
-| Feature | On BOMHort 0.7.1 |
+| Feature | On BOMHort 0.7.x |
 |---|---|
-| `Project`, `ListProjectSBOMs`, `ProjectVulnerabilities`, `ListProjectPackages` | `404` → `IsNotFound(err)` |
-| `ListProjectGroups` (`?group_by=parent`) | parameter ignored; the server returns plain projects, which decode into mostly-empty `ProjectGroup`s (and fail with `WithStrictDecoding`) |
-| `SBOMListOptions.Project` (`?project=`) | ignored: all SBOMs are returned |
-| `UploadOptions.Parent` (`?parent=`) | ignored |
-| `Project.Parent`, `Project.ParentSource`, `Tag.IsProject`, `Vulnerability.AffectedSBOMs`, `UploadResult.Parent` | empty |
+| `Project`, `ListProjectSBOMs`, `ProjectVulnerabilities`, `ListProjectPackages`, `LicenseSources`, `VulnerabilityReportCSV` | `404` → `IsNotFound(err)` |
+| `ListProjectGroups` (`?group_by=parent`), `LicenseViolationSummaries` (`?summary=true`) | parameter ignored; the server returns the plain rows, which decode into mostly-empty structs (and fail with `WithStrictDecoding`) |
+| `VulnerabilityOptions.Scope` (`?scope=`), `SBOMListOptions.Project` (`?project=`), `UploadOptions.Parent` (`?parent=`) | ignored: everything is returned / no parent set |
+| `Vulnerability.CVEID/Aliases/DependencyScope/DependencyDepth/AffectedSBOMs`, `DependencyNode.LicenseSource/DependencyScope/DependencyDepth`, `AffectedProject.DependencyScope/DependencyDepth`, `VEXStatement.CVEID/Aliases`, `SearchVulnerability.CVEID/Aliases`, `SBOMLicense.PackageScopes`, `LicenseViolation.UnapprovedCount/PackageScopes`, `Project.Parent/ParentSource`, `Tag.IsProject`, `UploadResult.Parent` | empty |
+| `Dependencies` of an unknown SBOM id | `200 []` instead of `404` |
 
-These are marked *unreleased* in the Go doc comments and in [API-COVERAGE.md](API-COVERAGE.md).
+The integration suite skips `>= 0.8.0` routes when the server answers `404` ([TESTING.md](TESTING.md)).
 
-## Versioning policy
+## Go API stability
 
-bomhort-go follows [semantic versioning](https://semver.org) for its Go API.
-
-- **0.x:** the API may still change between minor versions; every change is listed in [CHANGELOG.md](../CHANGELOG.md) with migration notes.
-- **1.x (planned once BOMHort's API stabilises):** no breaking changes to exported identifiers within a major version.
-- New BOMHort fields are added as new struct fields (not breaking). Removed or renamed BOMHort fields are kept as deprecated fields for at least one minor release.
+- **0.x:** the exported Go API may change between minors; every change is listed in [CHANGELOG.md](../CHANGELOG.md) with migration notes. We avoid gratuitous breaks: BOMHort additions are mirrored as new fields and methods, and a removed or renamed BOMHort field stays as a deprecated Go field for at least one minor.
+- **1.x (once BOMHort's API is frozen):** no breaking changes to exported identifiers within a major.
 - The client never decodes strictly by default, so a newer BOMHort that adds fields does not break an older client.
 - `bomhorttest` is part of the public API and versioned with it; its behaviour tracks the BOMHort release pinned in CI.
 

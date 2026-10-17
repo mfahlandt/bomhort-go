@@ -38,7 +38,7 @@ func Example() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		vulns, err := c.Vulnerabilities(ctx, sbom.ID)
+		vulns, err := c.Vulnerabilities(ctx, sbom.ID, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -86,7 +86,7 @@ func ExampleClient_UploadVEX() {
 	}
 	fmt.Println("upload:", res.Status, res.JobType)
 
-	vulns, _ := c.Vulnerabilities(ctx, sbom.ID)
+	vulns, _ := c.Vulnerabilities(ctx, sbom.ID, nil)
 	fmt.Println("vex_status:", vulns[0].VEXStatus, "scope:", vulns[0].VEXScope)
 	// Output:
 	// upload: pending vex

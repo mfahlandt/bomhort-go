@@ -34,7 +34,7 @@ type SBOMListOptions struct {
 	ListOptions
 	// Search is a substring match on document name or source path.
 	Search string
-	// Project is an exact project name (#398, unreleased; ignored by
+	// Project is an exact project name (#398, >= 0.8.0; ignored by
 	// older gateways).
 	Project string
 }
@@ -127,15 +127,34 @@ func (c *Client) SBOMDetail(ctx context.Context, sbomID string) (SBOMDetail, err
 	return out, err
 }
 
-// Vulnerabilities returns all findings of an SBOM (not paginated), one row
-// per (vuln_id, purl) on BOMHort >= 0.7.0.
-func (c *Client) Vulnerabilities(ctx context.Context, sbomID string) ([]Vulnerability, error) {
+// VulnerabilityOptions filters the per-SBOM and per-project finding lists.
+// nil returns every scope.
+type VulnerabilityOptions struct {
+	// Scope keeps only findings whose package is pulled in that way: one
+	// of ScopeRoot, ScopeDirect, ScopeTransitive, ScopeUnknown (#444,
+	// >= 0.8.0; older gateways ignore it). Anything else is a 400.
+	Scope string
+}
+
+func (o *VulnerabilityOptions) query() url.Values {
+	q := url.Values{}
+	if o != nil {
+		setIf(q, "scope", o.Scope)
+	}
+	return q
+}
+
+// Vulnerabilities returns all findings of an SBOM (not paginated) with
+// their VEX status, one row per (vuln_id, purl) on BOMHort >= 0.7.0.
+// opts may be nil.
+func (c *Client) Vulnerabilities(ctx context.Context, sbomID string, opts *VulnerabilityOptions) ([]Vulnerability, error) {
 	var out []Vulnerability
-	err := c.getJSON(ctx, "/api/v1/sboms/"+esc(sbomID)+"/vulnerabilities", nil, &out)
+	err := c.getJSON(ctx, "/api/v1/sboms/"+esc(sbomID)+"/vulnerabilities", opts.query(), &out)
 	return out, err
 }
 
-// Dependencies returns the flat dependency node list of an SBOM.
+// Dependencies returns the flat dependency node list of an SBOM
+// (404 for an unknown id since BOMHort 0.8.0, 200 [] before).
 func (c *Client) Dependencies(ctx context.Context, sbomID string) ([]DependencyNode, error) {
 	var out []DependencyNode
 	err := c.getJSON(ctx, "/api/v1/sboms/"+esc(sbomID)+"/dependencies", nil, &out)
@@ -166,7 +185,12 @@ func (c *Client) DownloadSBOM(ctx context.Context, sbomID string) ([]byte, error
 // number of bytes written. Unlike DownloadSBOM it does not buffer the
 // document and does not retry on 429.
 func (c *Client) DownloadSBOMTo(ctx context.Context, sbomID string, w io.Writer) (int64, error) {
-	path := "/api/v1/sboms/" + esc(sbomID) + "/download"
+	return c.stream(ctx, "/api/v1/sboms/"+esc(sbomID)+"/download", w)
+}
+
+// stream copies the body of GET path (which may carry a query) into w
+// without buffering it.
+func (c *Client) stream(ctx context.Context, path string, w io.Writer) (int64, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return 0, err
 	}

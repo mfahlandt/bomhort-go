@@ -10,7 +10,8 @@ The Go client for the [BOMHort](https://github.com/seebom-labs/BOMHort) REST API
 - **Zero dependencies:** standard library only.
 - **Production behaviour built in:** API key / service token auth, client-side rate limiting, 429 retries honouring `Retry-After`, typed errors, iterator-based pagination, streaming downloads.
 - **Testable:** [`bomhorttest`](bomhorttest) is an in-memory fake gateway with BOMHort's real upload, VEX scoping and matching semantics.
-- **Verified against real BOMHort:** every PR runs the integration suite with strict decoding against a pinned BOMHort release; a weekly job also runs it against BOMHort `main` to catch API drift.
+- **Verified against real BOMHort:** every PR runs the integration suite with strict decoding against the pinned BOMHort release; a weekly job also runs it against BOMHort `main` to catch API drift.
+- **Versioned with BOMHort:** `bomhort-go v0.8.x` is the client for BOMHort 0.8.x ([compatibility](docs/COMPATIBILITY.md)).
 
 Extracted from [VEXViper](https://github.com/seebom-labs/VEXViper)'s `internal/bomhort` ([why](https://github.com/seebom-labs/VEXViper/blob/main/docs/INTEGRATION.md#8-should-the-bomhort-go-client-be-its-own-module)).
 
@@ -48,7 +49,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		vulns, err := c.Vulnerabilities(ctx, sbom.ID)
+		vulns, err := c.Vulnerabilities(ctx, sbom.ID, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -145,7 +146,7 @@ The fake implements health probes, auth, pagination and filters, SBOM reads, dow
 |----------|----------|
 | [docs/API-COVERAGE.md](docs/API-COVERAGE.md) | Every BOMHort endpoint ↔ client method ↔ type, with the BOMHort version it appeared in |
 | [docs/VEX.md](docs/VEX.md) | Upload contract, VEX scoping, product-wide statements and the matching rules |
-| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | Supported Go and BOMHort versions, versioning policy, unreleased endpoints |
+| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | Supported Go and BOMHort versions, lockstep versioning, behaviour on older BOMHort |
 | [docs/TESTING.md](docs/TESTING.md) | Unit tests, the fake server, integration and E2E tests, API drift detection |
 | [docs/MIGRATING-FROM-VEXVIPER.md](docs/MIGRATING-FROM-VEXVIPER.md) | Moving from VEXViper's `internal/bomhort` |
 | [docs/RELEASING.md](docs/RELEASING.md) | Release process |

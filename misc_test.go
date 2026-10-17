@@ -24,6 +24,8 @@ func mustTime(s string) time.Time {
 	return t
 }
 
+func ptr[T any](v T) *T { return &v }
+
 func TestUploadValidation(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

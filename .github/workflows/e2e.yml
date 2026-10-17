@@ -18,8 +18,12 @@ on:
         description: BOMHort git ref to build (commit, tag or branch)
         default: main
 env:
-  # BOMHort v0.7.1. Bump together with docs/COMPATIBILITY.md.
-  BOMHORT_PINNED_REF: f36a895164822778d78e70fe23e085a2b04ee4c3
+  # The BOMHort release the client is developed and released against
+  # (docs/COMPATIBILITY.md). BOMHORT_PINNED_REF is the commit SHA of
+  # BOMHORT_PINNED_VERSION; release.yml checks that a vX.Y.0 client tag
+  # matches its X.Y.
+  BOMHORT_PINNED_VERSION: v0.8.0-rc.3
+  BOMHORT_PINNED_REF: 3a1fa24a493f337aea9c57f29eb2b1a7fb2bdf4f
 permissions:
   contents: read
 concurrency:

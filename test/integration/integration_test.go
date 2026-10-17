@@ -8,8 +8,9 @@
 //
 // Every response is decoded with WithStrictDecoding, so a field BOMHort adds
 // without a matching struct field fails the run: that is how API drift is
-// detected (see docs/TESTING.md). Endpoints that only exist on BOMHort main
-// (not yet released) are skipped when the server answers 404.
+// detected (see docs/TESTING.md). Endpoints newer than the server under
+// test (e.g. BOMHort 0.8 routes against a 0.7 gateway) are skipped when it
+// answers 404.
 package integration
 
 import (
@@ -143,7 +144,7 @@ func ingest(c *bomhort.Client) (*fixture, error) {
 		if err == nil {
 			for _, s := range p.Data {
 				if s.DocumentName == m["name"] && s.VulnCount > 0 {
-					vulns, err := c.Vulnerabilities(ctx, s.ID)
+					vulns, err := c.Vulnerabilities(ctx, s.ID, nil)
 					if err != nil {
 						return nil, err
 					}
@@ -159,36 +160,41 @@ func ingest(c *bomhort.Client) (*fixture, error) {
 	}
 }
 
-// unreleased skips when an endpoint that only exists on BOMHort main
-// answers 404 on a released server.
-func unreleased(t *testing.T, err error) {
+// since08 skips when a route that BOMHort added in 0.8.0 answers 404 on an
+// older server.
+func since08(t *testing.T, err error) {
 	t.Helper()
 	if bomhort.IsNotFound(err) {
-		t.Skipf("endpoint not available on this BOMHort (unreleased): %v", err)
+		t.Skipf("route needs BOMHort >= 0.8.0: %v", err)
+	}
+}
+
+var (
+	probeOnce sync.Once
+	has08     bool
+)
+
+// is08 reports whether the server has the BOMHort 0.8 API (probed once via
+// GET /api/v1/projects/{name}/sboms of the fixture project, a route 0.7
+// servers do not have).
+func is08(c *bomhort.Client) bool {
+	probeOnce.Do(func() {
+		_, err := c.ListProjectSBOMs(context.Background(), project, nil)
+		has08 = !bomhort.IsNotFound(err)
+	})
+	return has08
+}
+
+// require08 skips unless the server has the BOMHort 0.8 API.
+func require08(t *testing.T, c *bomhort.Client) {
+	t.Helper()
+	if !is08(c) {
+		t.Skip("server predates BOMHort 0.8.0")
 	}
 }
 
 // must turns (value, error) into a value, failing the test on error:
 // must(c.SBOMDetail(ctx, id))(t).
-var (
-	probeOnce sync.Once
-	hasUnrel  bool
-)
-
-// requireUnreleased skips unless the server has the API that is only on
-// BOMHort main (probed via GET /api/v1/projects/{name}/sboms of the fixture
-// project, a route released servers do not have).
-func requireUnreleased(t *testing.T, c *bomhort.Client) {
-	t.Helper()
-	probeOnce.Do(func() {
-		_, err := c.ListProjectSBOMs(context.Background(), project, nil)
-		hasUnrel = !bomhort.IsNotFound(err)
-	})
-	if !hasUnrel {
-		t.Skip("server predates the unreleased BOMHort API")
-	}
-}
-
 func must[T any](v T, err error) func(testing.TB) T {
 	return func(t testing.TB) T {
 		t.Helper()
@@ -257,6 +263,18 @@ func TestSBOM(t *testing.T) {
 	if len(deps) == 0 {
 		t.Error("no dependency nodes")
 	}
+	if is08(c) {
+		if _, err := c.Dependencies(ctx, "00000000-0000-4000-8000-000000000000"); !bomhort.IsNotFound(err) {
+			t.Errorf("unknown SBOM dependencies: want 404 on BOMHort >= 0.8, got %v", err)
+		}
+		if _, err := c.Vulnerabilities(ctx, s.ID, &bomhort.VulnerabilityOptions{Scope: "nope"}); !bomhort.IsBadRequest(err) {
+			t.Errorf("invalid scope: want 400, got %v", err)
+		}
+		direct := must(c.Vulnerabilities(ctx, s.ID, &bomhort.VulnerabilityOptions{Scope: bomhort.ScopeDirect}))(t)
+		if slices.ContainsFunc(direct, func(v bomhort.Vulnerability) bool { return v.DependencyScope != bomhort.ScopeDirect }) {
+			t.Errorf("scope=direct returned other scopes: %+v", direct)
+		}
+	}
 	_ = must(c.SBOMLicenses(ctx, s.ID))(t)
 
 	got := must(c.DownloadSBOM(ctx, s.ID))(t)
@@ -275,14 +293,14 @@ func TestSBOM(t *testing.T) {
 	if p, err := c.ListSBOMs(ctx, &bomhort.SBOMListOptions{Project: project}); err != nil {
 		t.Error(err)
 	} else if !slices.ContainsFunc(p.Data, func(x bomhort.SBOM) bool { return x.ID == s.ID }) {
-		// ?project= is unreleased; older servers ignore it and return everything.
-		t.Logf("?project= filter did not return the SBOM (unreleased on this server?)")
+		// ?project= needs BOMHort >= 0.8; older servers ignore it and return everything.
+		t.Logf("?project= filter did not return the SBOM (BOMHort < 0.8?)")
 	}
 
 	if _, err := c.SBOMDetail(ctx, "00000000-0000-4000-8000-000000000000"); !bomhort.IsNotFound(err) {
 		t.Errorf("unknown SBOM detail: want 404, got %v", err)
 	}
-	if _, err := c.Vulnerabilities(ctx, "not-a-uuid"); !bomhort.IsBadRequest(err) {
+	if _, err := c.Vulnerabilities(ctx, "not-a-uuid", nil); !bomhort.IsBadRequest(err) {
 		t.Errorf("invalid SBOM id: want 400, got %v", err)
 	}
 }
@@ -374,7 +392,7 @@ func waitVEX(t *testing.T, f *fixture, want func(bomhort.Vulnerability) bool) []
 	for {
 		var hit []bomhort.Vulnerability
 		missing := 0
-		for _, v := range must(f.c.Vulnerabilities(context.Background(), f.sbom.ID))(t) {
+		for _, v := range must(f.c.Vulnerabilities(context.Background(), f.sbom.ID, nil))(t) {
 			if !want(v) {
 				continue
 			}
@@ -496,12 +514,36 @@ func TestCatalog(t *testing.T) {
 	t.Run("archived", func(t *testing.T) { _ = must(c.ArchivedPackages(ctx))(t) })
 	t.Run("license-compliance", func(t *testing.T) { _ = must(c.LicenseCompliance(ctx))(t) })
 	t.Run("license-violations", func(t *testing.T) { _ = must(c.LicenseViolations(ctx))(t) })
+	t.Run("license-violation-summaries", func(t *testing.T) {
+		// 0.7 servers ignore ?summary=true and answer full rows, which
+		// strict decoding rejects.
+		require08(t, c)
+		_ = must(c.LicenseViolationSummaries(ctx))(t)
+	})
+	t.Run("license-sources", func(t *testing.T) {
+		_, err := c.LicenseSources(ctx)
+		since08(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("license-exceptions", func(t *testing.T) { _ = must(c.LicenseExceptions(ctx))(t) })
 	t.Run("license-policy", func(t *testing.T) { _ = must(c.LicensePolicy(ctx))(t) })
 	t.Run("vulnerabilities", func(t *testing.T) {
-		p := must(c.ListVulnerabilities(ctx, &bomhort.ListOptions{PageSize: 500}))(t)
+		p := must(c.ListVulnerabilities(ctx, &bomhort.VulnerabilityListOptions{ListOptions: bomhort.ListOptions{PageSize: 500}}))(t)
 		if p.Total == 0 {
 			t.Error("no vulnerabilities")
+		}
+	})
+	t.Run("vulnerability-report-csv", func(t *testing.T) {
+		var buf bytes.Buffer
+		n, err := c.VulnerabilityReportCSV(ctx, nil, &buf)
+		since08(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n == 0 || !strings.HasPrefix(buf.String(), "cve_id,vuln_id,") {
+			t.Errorf("csv report: %d bytes, header %q", n, strings.SplitN(buf.String(), "\n", 2)[0])
 		}
 	})
 }
@@ -519,12 +561,12 @@ func TestProjectsAndFleet(t *testing.T) {
 	t.Run("project-groups", func(t *testing.T) {
 		// Released servers ignore ?group_by=parent and answer with plain
 		// project rows, which strict decoding rejects.
-		requireUnreleased(t, c)
+		require08(t, c)
 		_ = must(c.ListProjectGroups(ctx, nil))(t)
 	})
 	t.Run("project", func(t *testing.T) {
 		p, err := c.Project(ctx, project)
-		unreleased(t, err)
+		since08(t, err)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -534,7 +576,7 @@ func TestProjectsAndFleet(t *testing.T) {
 	})
 	t.Run("project-sboms", func(t *testing.T) {
 		p, err := c.ListProjectSBOMs(ctx, project, nil)
-		unreleased(t, err)
+		since08(t, err)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -543,8 +585,8 @@ func TestProjectsAndFleet(t *testing.T) {
 		}
 	})
 	t.Run("project-vulnerabilities", func(t *testing.T) {
-		vs, err := c.ProjectVulnerabilities(ctx, project)
-		unreleased(t, err)
+		vs, err := c.ProjectVulnerabilities(ctx, project, nil)
+		since08(t, err)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -554,7 +596,7 @@ func TestProjectsAndFleet(t *testing.T) {
 	})
 	t.Run("project-packages", func(t *testing.T) {
 		_, err := c.ListProjectPackages(ctx, project, nil)
-		unreleased(t, err)
+		since08(t, err)
 		if err != nil {
 			t.Fatal(err)
 		}

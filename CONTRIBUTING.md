@@ -7,7 +7,7 @@ Thanks for helping! bomhort-go is a small, dependency-free library, and we want 
 - **Stdlib only.** No third-party modules in `go.mod` (`make tidy-check` enforces it). Test tooling runs via `go run …@version` in the Makefile.
 - **Follow BOMHort, don't invent.** Types and behaviour mirror the BOMHort api-gateway source (`backend/cmd/api-gateway`, `backend/pkg/dto`). Link the BOMHort issue/PR when you add something.
 - **Everything is tested.** New endpoint → method + `endpoints_test.go` row + integration test + [docs/API-COVERAGE.md](docs/API-COVERAGE.md). New behaviour in BOMHort that clients observe → model it in `bomhorttest` with tests.
-- **Mark unreleased API.** Features that only exist on BOMHort `main` are marked *unreleased* in doc comments and docs, and the integration test skips them on `404`.
+- **Date new API.** Doc comments and docs name the BOMHort version that introduced a route or field (`>= 0.8.0`; *unreleased* for BOMHort `main` only), and the integration test skips newer routes on `404`.
 
 ## Workflow
 

@@ -19,8 +19,8 @@ func setup(t *testing.T) (*bomhorttest.Server, *bomhort.Client, bomhort.SBOM, bo
 	t.Cleanup(srv.Close)
 	vulns := func() []bomhort.Vulnerability {
 		return []bomhort.Vulnerability{
-			{VulnID: "GHSA-1", Severity: "HIGH", PURL: purl},
-			{VulnID: "GHSA-2", Severity: "CRITICAL", PURL: "pkg:npm/x@1.0.0"},
+			{VulnID: "GHSA-1", Severity: "HIGH", PURL: purl, DependencyScope: bomhort.ScopeDirect},
+			{VulnID: "GHSA-2", Severity: "CRITICAL", PURL: "pkg:npm/x@1.0.0", DependencyScope: bomhort.ScopeTransitive},
 		}
 	}
 	a := srv.AddSBOM(bomhort.SBOM{ID: bomhorttest.UUID(1), DocumentName: "app", SourceFile: "app.spdx.json", Project: "app"}, vulns(),
@@ -102,15 +102,29 @@ func TestReadEndpoints(t *testing.T) {
 	if _, err := c.SBOMDetail(ctx, bomhorttest.UUID(999)); !bomhort.IsNotFound(err) {
 		t.Fatalf("unknown detail: %v", err)
 	}
-	if _, err := c.Vulnerabilities(ctx, "not-a-uuid"); !bomhort.IsBadRequest(err) {
+	if _, err := c.Vulnerabilities(ctx, "not-a-uuid", nil); !bomhort.IsBadRequest(err) {
 		t.Fatalf("invalid id must be 400 like BOMHort: %v", err)
 	}
-	if v, err := c.Vulnerabilities(ctx, bomhorttest.UUID(999)); err != nil || len(v) != 0 {
+	if v, err := c.Vulnerabilities(ctx, bomhorttest.UUID(999), nil); err != nil || len(v) != 0 {
 		t.Fatalf("unknown id lists are empty, not 404: %v %v", v, err)
+	}
+	if v, err := c.Vulnerabilities(ctx, a.ID, &bomhort.VulnerabilityOptions{Scope: bomhort.ScopeDirect}); err != nil || len(v) != 1 || v[0].VulnID != "GHSA-1" {
+		t.Fatalf("scope filter: %v %v", v, err)
+	}
+	if _, err := c.Vulnerabilities(ctx, a.ID, &bomhort.VulnerabilityOptions{Scope: "nope"}); !bomhort.IsBadRequest(err) {
+		t.Fatalf("invalid scope must be 400 like BOMHort: %v", err)
 	}
 	deps, err := c.Dependencies(ctx, a.ID)
 	if err != nil || len(deps) != 2 {
 		t.Fatalf("deps: %v %v", deps, err)
+	}
+	if _, err := c.Dependencies(ctx, bomhorttest.UUID(999)); !bomhort.IsNotFound(err) {
+		t.Fatalf("unknown id dependencies are 404 since BOMHort 0.8: %v", err)
+	}
+	srv.Handle("GET /api/v1/reports/vulnerabilities", 200, []byte("cve_id,vuln_id\n"))
+	var csv strings.Builder
+	if n, err := c.VulnerabilityReportCSV(ctx, nil, &csv); err != nil || n != 15 || csv.String() != "cve_id,vuln_id\n" {
+		t.Fatalf("csv report: %d %q %v", n, csv.String(), err)
 	}
 	raw, err := c.DownloadSBOM(ctx, a.ID)
 	if err != nil || !strings.Contains(string(raw), "SPDX-2.3") {
@@ -131,10 +145,10 @@ func TestAuth(t *testing.T) {
 	if err := bomhort.New(srv.URL).Healthy(ctx); err != nil {
 		t.Fatalf("health probes are public: %v", err)
 	}
-	if _, err := bomhort.New(srv.URL).Vulnerabilities(ctx, a.ID); !bomhort.IsUnauthorized(err) {
+	if _, err := bomhort.New(srv.URL).Vulnerabilities(ctx, a.ID, nil); !bomhort.IsUnauthorized(err) {
 		t.Fatalf("missing key: %v", err)
 	}
-	if _, err := bomhort.New(srv.URL, bomhort.WithAPIKey("wrong")).Vulnerabilities(ctx, a.ID); !bomhort.IsUnauthorized(err) {
+	if _, err := bomhort.New(srv.URL, bomhort.WithAPIKey("wrong")).Vulnerabilities(ctx, a.ID, nil); !bomhort.IsUnauthorized(err) {
 		t.Fatalf("wrong key: %v", err)
 	}
 
@@ -199,8 +213,8 @@ func TestScopedVEXOnlyAffectsOneSBOM(t *testing.T) {
 	if err != nil || res.JobType != "vex" {
 		t.Fatalf("%+v %v", res, err)
 	}
-	va, _ := c.Vulnerabilities(ctx, a.ID)
-	vb, _ := c.Vulnerabilities(ctx, b.ID)
+	va, _ := c.Vulnerabilities(ctx, a.ID, nil)
+	vb, _ := c.Vulnerabilities(ctx, b.ID, nil)
 	if va[0].VEXStatus != "not_affected" || va[0].VEXScope != "sbom" || va[0].VEXAuthor != "tester" || va[0].VEXStatementID == "" {
 		t.Fatalf("scoped statement not applied: %+v", va[0])
 	}
@@ -237,7 +251,7 @@ func TestVEXScopeResolution(t *testing.T) {
 	}
 	vuln := func(id string, i int) bomhort.Vulnerability {
 		t.Helper()
-		v, err := c.Vulnerabilities(ctx, id)
+		v, err := c.Vulnerabilities(ctx, id, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -289,7 +303,7 @@ func TestNewestStatementWins(t *testing.T) {
 	ctx := context.Background()
 	srv.AddStatement(bomhort.VEXStatement{VulnID: "GHSA-1", ProductPURL: purl, Status: "affected", VEXTimestamp: "2026-05-01T00:00:00Z", SBOMID: a.ID})
 	srv.AddStatement(bomhort.VEXStatement{VulnID: "GHSA-1", ProductPURL: purl, Status: "fixed", VEXTimestamp: "2026-03-01T00:00:00Z", SBOMID: a.ID})
-	v, _ := c.Vulnerabilities(ctx, a.ID)
+	v, _ := c.Vulnerabilities(ctx, a.ID, nil)
 	if v[0].VEXStatus != "affected" || v[0].VEXTimestamp != "2026-05-01T00:00:00Z" {
 		t.Fatalf("older statement overrode newer one: %+v", v[0])
 	}
@@ -350,7 +364,7 @@ func TestConcurrentUse(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = c.Vulnerabilities(ctx, a.ID)
+			_, _ = c.Vulnerabilities(ctx, a.ID, nil)
 			doc := vexDoc("GHSA-1", "app", []string{"affected", "fixed"}[i%2], purl)
 			_, _ = c.UploadVEX(ctx, "c.openvex.json", append(doc, []byte(strings.Repeat(" ", i))...), a.ID)
 		}()
