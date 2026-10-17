@@ -45,7 +45,8 @@ func (c *Client) Projects(ctx context.Context, opts *ProjectListOptions) Seq[Pro
 }
 
 // ListProjectGroups returns one page of parents with their member projects
-// (GET /api/v1/projects?group_by=parent, unreleased).
+// (GET /api/v1/projects?group_by=parent, >= 0.8.0; older gateways ignore
+// the parameter and return plain projects).
 func (c *Client) ListProjectGroups(ctx context.Context, opts *ProjectListOptions) (Paginated[ProjectGroup], error) {
 	q := opts.query()
 	q.Set("group_by", "parent")
@@ -55,7 +56,7 @@ func (c *Client) ListProjectGroups(ctx context.Context, opts *ProjectListOptions
 }
 
 // Project returns one project aggregated over all of its SBOMs
-// (GET /api/v1/projects/{name}, #398, unreleased). Names containing "/" are
+// (GET /api/v1/projects/{name}, #398, >= 0.8.0). Names containing "/" are
 // escaped correctly. A project literally named "license-compliance" is not
 // reachable through this route (BOMHort limitation).
 func (c *Client) Project(ctx context.Context, name string) (ProjectDetail, error) {
@@ -65,7 +66,7 @@ func (c *Client) Project(ctx context.Context, name string) (ProjectDetail, error
 }
 
 // ListProjectSBOMs returns one page of a project's SBOMs (its versions)
-// (GET /api/v1/projects/{name}/sboms, #398, unreleased).
+// (GET /api/v1/projects/{name}/sboms, #398, >= 0.8.0).
 func (c *Client) ListProjectSBOMs(ctx context.Context, name string, opts *ListOptions) (Paginated[SBOM], error) {
 	var out Paginated[SBOM]
 	err := c.getJSON(ctx, "/api/v1/projects/"+esc(name)+"/sboms", pageQuery(opt(opts)), &out)
@@ -74,16 +75,17 @@ func (c *Client) ListProjectSBOMs(ctx context.Context, name string, opts *ListOp
 
 // ProjectVulnerabilities returns the distinct findings across a project's
 // SBOMs; Vulnerability.AffectedSBOMs says in how many SBOMs each occurs
-// (GET /api/v1/projects/{name}/vulnerabilities, #398, unreleased).
-func (c *Client) ProjectVulnerabilities(ctx context.Context, name string) ([]Vulnerability, error) {
+// (GET /api/v1/projects/{name}/vulnerabilities, #398, >= 0.8.0). opts may
+// be nil.
+func (c *Client) ProjectVulnerabilities(ctx context.Context, name string, opts *VulnerabilityOptions) ([]Vulnerability, error) {
 	var out []Vulnerability
-	err := c.getJSON(ctx, "/api/v1/projects/"+esc(name)+"/vulnerabilities", nil, &out)
+	err := c.getJSON(ctx, "/api/v1/projects/"+esc(name)+"/vulnerabilities", opts.query(), &out)
 	return out, err
 }
 
 // ListProjectPackages returns one page of the distinct components across a
 // project's SBOMs (GET /api/v1/projects/{name}/packages, #398,
-// unreleased). opts may be nil.
+// >= 0.8.0). opts may be nil.
 func (c *Client) ListProjectPackages(ctx context.Context, name string, opts *SearchListOptions) (Paginated[ProjectPackage], error) {
 	var out Paginated[ProjectPackage]
 	err := c.getJSON(ctx, "/api/v1/projects/"+esc(name)+"/packages", opts.query(), &out)

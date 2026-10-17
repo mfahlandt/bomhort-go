@@ -5,8 +5,9 @@ import "time"
 // The types in this file mirror backend/pkg/dto/api.go (and a few
 // handler-local response shapes) in seebom-labs/BOMHort. Field names and
 // JSON tags follow the server exactly; timestamps are kept as the strings
-// BOMHort sends. Fields marked "unreleased" exist on BOMHort main but not
-// in the latest release yet and are simply empty on older gateways.
+// BOMHort sends. Fields marked with a BOMHort version (">= 0.8.0") are
+// simply empty on older gateways; fields marked "unreleased" exist on
+// BOMHort main only.
 
 // ListOptions selects one page of a paginated endpoint. Zero values use the
 // server defaults (page 1, page_size 50; BOMHort caps page_size at 500).
@@ -127,20 +128,32 @@ type Vulnerability struct {
 	// 0.7.0 unscoped statements never apply, so it is not sent in practice.
 	VEXScope string `json:"vex_scope,omitempty"`
 	// AffectedSBOMs is set only on project-level listings: how many of the
-	// project's SBOMs carry this (vuln_id, purl) pair (#398, unreleased).
+	// project's SBOMs carry this (vuln_id, purl) pair (#398, >= 0.8.0).
 	AffectedSBOMs uint64 `json:"affected_sboms,omitempty"`
 }
+
+// Dependency scopes as sent in Vulnerability.DependencyScope and accepted
+// by VulnerabilityOptions.Scope (#444, >= 0.8.0).
+const (
+	ScopeRoot       = "root"
+	ScopeDirect     = "direct"
+	ScopeTransitive = "transitive"
+	ScopeUnknown    = "unknown"
+)
 
 // DependencyNode is one node of GET /api/v1/sboms/{id}/dependencies. The
 // tree is a flat list; Children holds the Index values of child nodes.
 type DependencyNode struct {
-	Index    uint32   `json:"index"`
-	SPDXID   string   `json:"spdx_id"`
-	Name     string   `json:"name"`
-	Version  string   `json:"version"`
-	PURL     string   `json:"purl"`
-	License  string   `json:"license"`
-	Children []uint32 `json:"children"`
+	Index   uint32 `json:"index"`
+	SPDXID  string `json:"spdx_id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	PURL    string `json:"purl"`
+	License string `json:"license"`
+	// LicenseSource says where License came from or why there is none
+	// (>= 0.8.0; empty for SBOMs ingested before it was recorded).
+	LicenseSource string   `json:"license_source,omitempty"`
+	Children      []uint32 `json:"children"`
 	// Stored dependency scope of the node (#444, >= 0.8.0); see Vulnerability.
 	DependencyScope string  `json:"dependency_scope,omitempty"`
 	DependencyDepth *uint32 `json:"dependency_depth,omitempty"`
@@ -155,6 +168,26 @@ type SBOMLicense struct {
 	Packages         []string `json:"packages"`
 	ExemptedPackages []string `json:"exempted_packages,omitempty"`
 	ExemptionReason  string   `json:"exemption_reason,omitempty"`
+	// PackageScopes maps a name from Packages/ExemptedPackages to its
+	// dependency scope; absent names are unknown (#444, >= 0.8.0).
+	PackageScopes map[string]string `json:"package_scopes,omitempty"`
+}
+
+// LicenseSource is one entry of GET /api/v1/licenses/sources (>= 0.8.0):
+// where package licenses came from, or why they are missing.
+// DTO: LicenseSourceItem.
+type LicenseSource struct {
+	// Source is the full value ("depsdev+latest", "not-published";
+	// "unrecorded" for packages ingested before sources were recorded),
+	// Origin the part before "+" and Modifiers the "+"-joined suffixes.
+	Source    string   `json:"source"`
+	Origin    string   `json:"origin"`
+	Modifiers []string `json:"modifiers"`
+	// Resolved is false when Source is a reason for a missing license.
+	Resolved     bool     `json:"resolved"`
+	PackageCount uint64   `json:"package_count"`
+	SBOMCount    uint64   `json:"sbom_count"`
+	Examples     []string `json:"examples"`
 }
 
 // VEXStatement is one ingested statement: GET /api/v1/vex/statements and
@@ -169,14 +202,19 @@ type VEXStatement struct {
 	SBOMID string `json:"sbom_id,omitempty"`
 	// ProductPURL is the subcomponent purl the statement is about, or "*"
 	// for a product-wide statement (product without subcomponents).
-	ProductPURL     string `json:"product_purl"`
-	VulnID          string `json:"vuln_id"`
-	Status          string `json:"status"`
-	Justification   string `json:"justification"`
-	ImpactStatement string `json:"impact_statement,omitempty"`
-	ActionStatement string `json:"action_statement,omitempty"`
-	VEXTimestamp    string `json:"vex_timestamp"`
-	IngestedAt      string `json:"ingested_at"`
+	ProductPURL string `json:"product_purl"`
+	VulnID      string `json:"vuln_id"`
+	// CVEID and Aliases are the other names of the flaw, looked up from
+	// the findings the statement can match (#412, >= 0.8.0). VulnID stays
+	// the id the author used; match on it, not on the aliases.
+	CVEID           string   `json:"cve_id,omitempty"`
+	Aliases         []string `json:"aliases,omitempty"`
+	Status          string   `json:"status"`
+	Justification   string   `json:"justification"`
+	ImpactStatement string   `json:"impact_statement,omitempty"`
+	ActionStatement string   `json:"action_statement,omitempty"`
+	VEXTimestamp    string   `json:"vex_timestamp"`
+	IngestedAt      string   `json:"ingested_at"`
 	// Provenance (#334, >= 0.7.0); empty when the document has none.
 	Author        string     `json:"author,omitempty"`
 	Role          string     `json:"role,omitempty"`
@@ -212,9 +250,29 @@ type LicenseViolation struct {
 	SourceFile           string   `json:"source_file"`
 	DocumentName         string   `json:"document_name"`
 	CopyleftCount        uint64   `json:"copyleft_count"`
+	UnapprovedCount      uint64   `json:"unapproved_count"` // >= 0.8.0
 	UnknownCount         uint64   `json:"unknown_count"`
 	ViolatingLicenses    []string `json:"violating_licenses"`
 	NonCompliantPackages []string `json:"non_compliant_packages"`
+	// PackageScopes: see SBOMLicense (#444, >= 0.8.0).
+	PackageScopes map[string]string `json:"package_scopes,omitempty"`
+}
+
+// LicenseViolationSummary is one entry of
+// GET /api/v1/projects/license-compliance?summary=true (>= 0.8.0): the
+// LicenseViolation counts without the package lists.
+// DTO: ProjectLicenseViolationSummary.
+type LicenseViolationSummary struct {
+	SBOMID                   string   `json:"sbom_id"`
+	SourceFile               string   `json:"source_file"`
+	DocumentName             string   `json:"document_name"`
+	CopyleftCount            uint64   `json:"copyleft_count"`
+	UnapprovedCount          uint64   `json:"unapproved_count"`
+	UnknownCount             uint64   `json:"unknown_count"`
+	ViolatingLicenses        []string `json:"violating_licenses"`
+	NonCompliantPackageCount uint64   `json:"non_compliant_package_count"`
+	DirectCount              uint64   `json:"direct_count"`
+	TransitiveCount          uint64   `json:"transitive_count"`
 }
 
 // LicenseExceptions is GET /api/v1/license-exceptions (the operator's
@@ -407,10 +465,14 @@ type SearchProject struct {
 
 // SearchVulnerability is a vulnerability hit. DTO: GlobalSearchVulnerability.
 type SearchVulnerability struct {
-	VulnID        string `json:"vuln_id"`
-	Severity      string `json:"severity"`
-	Summary       string `json:"summary"`
-	AffectedSBOMs uint64 `json:"affected_sboms"`
+	VulnID string `json:"vuln_id"`
+	// CVEID and Aliases as on Vulnerability (#412, >= 0.8.0); the search
+	// also matches on any alias.
+	CVEID         string   `json:"cve_id,omitempty"`
+	Aliases       []string `json:"aliases,omitempty"`
+	Severity      string   `json:"severity"`
+	Summary       string   `json:"summary"`
+	AffectedSBOMs uint64   `json:"affected_sboms"`
 }
 
 // SearchLicense is a license hit. DTO: GlobalSearchLicense.
@@ -510,13 +572,13 @@ type Project struct {
 	LatestSBOMID   string   `json:"latest_sbom_id"`
 	Tags           []string `json:"tags"`
 	// Parent is the resolved product this project belongs to and
-	// ParentSource how it was resolved (unreleased).
+	// ParentSource how it was resolved (>= 0.8.0).
 	Parent       string `json:"parent,omitempty"`
 	ParentSource string `json:"parent_source,omitempty"`
 }
 
 // ProjectGroup is one entry of GET /api/v1/projects?group_by=parent
-// (unreleased). DTO: ProjectGroupItem.
+// (>= 0.8.0). DTO: ProjectGroupItem.
 type ProjectGroup struct {
 	Name           string    `json:"name"`
 	IsProject      bool      `json:"is_project"`
@@ -531,7 +593,7 @@ type ProjectGroup struct {
 	Members        []Project `json:"members"`
 }
 
-// ProjectDetail is GET /api/v1/projects/{name} (#398, unreleased): one
+// ProjectDetail is GET /api/v1/projects/{name} (#398, >= 0.8.0): one
 // project aggregated across all of its SBOMs.
 type ProjectDetail struct {
 	ProjectName         string            `json:"project_name"`
@@ -559,7 +621,7 @@ type ProjectDetail struct {
 }
 
 // ProjectPackage is one distinct component across a project's SBOMs
-// (GET /api/v1/projects/{name}/packages, unreleased).
+// (GET /api/v1/projects/{name}/packages, >= 0.8.0).
 // DTO: ProjectPackageItem.
 type ProjectPackage struct {
 	Name      string `json:"name"`
@@ -575,7 +637,7 @@ type Tag struct {
 	SBOMCount    uint64 `json:"sbom_count"`
 	ProjectCount uint64 `json:"project_count"`
 	// IsProject is true when the tag is also a project name, i.e. a parent
-	// (#398, unreleased).
+	// (#398, >= 0.8.0).
 	IsProject bool `json:"is_project"`
 }
 
@@ -591,7 +653,7 @@ type UploadResult struct {
 	Cluster   string `json:"cluster,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 	Project   string `json:"project,omitempty"`
-	Parent    string `json:"parent,omitempty"`
+	Parent    string `json:"parent,omitempty"` // >= 0.8.0
 	Message   string `json:"message,omitempty"`
 }
 

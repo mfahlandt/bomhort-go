@@ -35,7 +35,7 @@ import (
 )
 
 // Version is the client library version, sent in the default User-Agent.
-const Version = "0.1.0-dev"
+const Version = "0.8.0-dev"
 
 // DefaultUserAgent is sent unless WithUserAgent overrides it.
 const DefaultUserAgent = "bomhort-go/" + Version

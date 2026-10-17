@@ -2,6 +2,7 @@ package bomhort
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"strconv"
 )
@@ -26,12 +27,37 @@ func (c *Client) AllVEXStatements(ctx context.Context) ([]VEXStatement, error) {
 	return Collect(c.VEXStatements(ctx, nil))
 }
 
+// VulnerabilityListOptions pages and filters GET /api/v1/vulnerabilities.
+type VulnerabilityListOptions struct {
+	ListOptions
+	VulnerabilityOptions
+}
+
+func (o *VulnerabilityListOptions) query() url.Values {
+	if o == nil {
+		return url.Values{}
+	}
+	q := pageQuery(o.ListOptions)
+	setIf(q, "scope", o.Scope)
+	return q
+}
+
 // ListVulnerabilities returns one page of all findings across the
-// instance, each with its VEX status attached.
-func (c *Client) ListVulnerabilities(ctx context.Context, opts *ListOptions) (Paginated[Vulnerability], error) {
+// instance, each with its VEX status attached. opts may be nil.
+func (c *Client) ListVulnerabilities(ctx context.Context, opts *VulnerabilityListOptions) (Paginated[Vulnerability], error) {
 	var out Paginated[Vulnerability]
-	err := c.getJSON(ctx, "/api/v1/vulnerabilities", pageQuery(opt(opts)), &out)
+	err := c.getJSON(ctx, "/api/v1/vulnerabilities", opts.query(), &out)
 	return out, err
+}
+
+// VulnerabilityReportCSV streams GET /api/v1/reports/vulnerabilities
+// ?format=csv (#266, >= 0.8.0) into w and returns the bytes written: the
+// rows of ListVulnerabilities (same scope filter) as CSV with a header
+// line (cve_id, vuln_id, aliases, …, vex_status). Not retried on 429.
+func (c *Client) VulnerabilityReportCSV(ctx context.Context, opts *VulnerabilityOptions, w io.Writer) (int64, error) {
+	q := opts.query()
+	q.Set("format", "csv")
+	return c.stream(ctx, "/api/v1/reports/vulnerabilities?"+q.Encode(), w)
 }
 
 // AffectedProjects returns the SBOMs affected by a vulnerability id
@@ -131,9 +157,29 @@ func (c *Client) LicenseCompliance(ctx context.Context) ([]LicenseCompliance, er
 
 // LicenseViolations returns the SBOMs with non-compliant licenses after
 // applying the configured exceptions (GET /api/v1/projects/license-compliance).
+// The response lists every non-compliant package name and grows with the
+// instance; see LicenseViolationSummaries for the counts only.
 func (c *Client) LicenseViolations(ctx context.Context) ([]LicenseViolation, error) {
 	var out []LicenseViolation
 	err := c.getJSON(ctx, "/api/v1/projects/license-compliance", nil, &out)
+	return out, err
+}
+
+// LicenseViolationSummaries is LicenseViolations with counts instead of
+// package lists (GET /api/v1/projects/license-compliance?summary=true,
+// >= 0.8.0; older gateways ignore the parameter and the full rows decode
+// into mostly-empty summaries).
+func (c *Client) LicenseViolationSummaries(ctx context.Context) ([]LicenseViolationSummary, error) {
+	var out []LicenseViolationSummary
+	err := c.getJSON(ctx, "/api/v1/projects/license-compliance", url.Values{"summary": {"true"}}, &out)
+	return out, err
+}
+
+// LicenseSources returns where package licenses came from, or why they are
+// missing (GET /api/v1/licenses/sources, >= 0.8.0).
+func (c *Client) LicenseSources(ctx context.Context) ([]LicenseSource, error) {
+	var out []LicenseSource
+	err := c.getJSON(ctx, "/api/v1/licenses/sources", nil, &out)
 	return out, err
 }
 

@@ -27,6 +27,16 @@ jobs:
           [ "$got" = "$want" ] || { echo "bomhort.Version is $got, tag is $TAG"; exit 1; }
           awk -v v="$want" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notes.md
           [ -s notes.md ] || { echo "CHANGELOG.md has no section for [$want]"; exit 1; }
+      - name: Verify lockstep with the pinned BOMHort (vX.Y.0 only)
+        # docs/COMPATIBILITY.md: a vX.Y.0 client is the client for BOMHort X.Y.
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in v*.*.0|v*.*.0-*) ;; *) echo "patch release, skipped"; exit 0 ;; esac
+          minor="${TAG%.0}"; minor="${minor%.0-*}"
+          pinned=$(sed -n 's/^  BOMHORT_PINNED_VERSION: *//p' .github/workflows/e2e.yml)
+          case "$pinned" in "$minor".*) echo "pinned BOMHort $pinned matches $TAG" ;;
+            *) echo "pinned BOMHort is $pinned but tag is $TAG; bump BOMHORT_PINNED_VERSION/REF in e2e.yml first"; exit 1 ;; esac
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

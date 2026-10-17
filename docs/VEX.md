@@ -71,7 +71,7 @@ The winning statement is reported on the finding:
 ## 5. Minimal end-to-end example
 
 ```go
-vulns, _ := c.Vulnerabilities(ctx, sbom.ID)
+vulns, _ := c.Vulnerabilities(ctx, sbom.ID, nil)
 v := vulns[0]
 doc, _ := json.Marshal(map[string]any{
 	"@context":  "https://openvex.dev/ns/v0.2.0",

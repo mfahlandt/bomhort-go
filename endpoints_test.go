@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -44,19 +45,22 @@ func TestEndpointContract(t *testing.T) {
 		{"SBOMDetail", func(c *Client, ctx context.Context) (any, error) { return c.SBOMDetail(ctx, testID) },
 			"GET", "/api/v1/sboms/" + testID + "/detail", "", nil, "", `{"sbom_id":"x","critical_vulns":2}`,
 			SBOMDetail{ID: "x", CriticalVulns: 2}},
-		{"Vulnerabilities", func(c *Client, ctx context.Context) (any, error) { return c.Vulnerabilities(ctx, testID) },
+		{"Vulnerabilities", func(c *Client, ctx context.Context) (any, error) { return c.Vulnerabilities(ctx, testID, nil) },
 			"GET", "/api/v1/sboms/" + testID + "/vulnerabilities", "", nil, "",
-			`[{"vuln_id":"GHSA-1","purl":"pkg:golang/x@v1","vex_status":"not_affected","vex_scope":"sbom","vex_timestamp":"2026-01-01T00:00:00Z"}]`,
-			[]Vulnerability{{VulnID: "GHSA-1", PURL: "pkg:golang/x@v1", VEXStatus: "not_affected", VEXScope: "sbom", VEXTimestamp: "2026-01-01T00:00:00Z"}}},
+			`[{"vuln_id":"GHSA-1","cve_id":"CVE-1","aliases":["CVE-1"],"dependency_scope":"direct","dependency_depth":1,"purl":"pkg:golang/x@v1","vex_status":"not_affected","vex_scope":"sbom","vex_timestamp":"2026-01-01T00:00:00Z"}]`,
+			[]Vulnerability{{VulnID: "GHSA-1", CVEID: "CVE-1", Aliases: []string{"CVE-1"}, DependencyScope: "direct", DependencyDepth: ptr[uint32](1), PURL: "pkg:golang/x@v1", VEXStatus: "not_affected", VEXScope: "sbom", VEXTimestamp: "2026-01-01T00:00:00Z"}}},
+		{"Vulnerabilities scope", func(c *Client, ctx context.Context) (any, error) {
+			return c.Vulnerabilities(ctx, testID, &VulnerabilityOptions{Scope: ScopeTransitive})
+		}, "GET", "/api/v1/sboms/" + testID + "/vulnerabilities", "scope=transitive", nil, "", `[]`, []Vulnerability{}},
 		{"Dependencies", func(c *Client, ctx context.Context) (any, error) { return c.Dependencies(ctx, testID) },
-			"GET", "/api/v1/sboms/" + testID + "/dependencies", "", nil, "", `[{"index":0,"name":"root","children":[1]},{"index":1,"name":"dep"}]`,
-			[]DependencyNode{{Index: 0, Name: "root", Children: []uint32{1}}, {Index: 1, Name: "dep"}}},
+			"GET", "/api/v1/sboms/" + testID + "/dependencies", "", nil, "", `[{"index":0,"name":"root","children":[1],"dependency_scope":"root"},{"index":1,"name":"dep","license":"MIT","license_source":"depsdev","dependency_scope":"direct","dependency_depth":1}]`,
+			[]DependencyNode{{Index: 0, Name: "root", Children: []uint32{1}, DependencyScope: "root"}, {Index: 1, Name: "dep", License: "MIT", LicenseSource: "depsdev", DependencyScope: "direct", DependencyDepth: ptr[uint32](1)}}},
 		{"SBOMLicenses", func(c *Client, ctx context.Context) (any, error) { return c.SBOMLicenses(ctx, testID) },
-			"GET", "/api/v1/sboms/" + testID + "/licenses", "", nil, "", `[{"license_id":"MIT","category":"permissive","package_count":3,"packages":["a"]}]`,
-			[]SBOMLicense{{LicenseID: "MIT", Category: "permissive", PackageCount: 3, Packages: []string{"a"}}}},
+			"GET", "/api/v1/sboms/" + testID + "/licenses", "", nil, "", `[{"license_id":"MIT","category":"permissive","package_count":3,"packages":["a"],"package_scopes":{"a":"direct"}}]`,
+			[]SBOMLicense{{LicenseID: "MIT", Category: "permissive", PackageCount: 3, Packages: []string{"a"}, PackageScopes: map[string]string{"a": "direct"}}}},
 		{"SBOMVEXStatements", func(c *Client, ctx context.Context) (any, error) { return c.SBOMVEXStatements(ctx, testID) },
-			"GET", "/api/v1/sboms/" + testID + "/vex", "", nil, "", `[{"vex_id":"v","sbom_id":"s","status":"fixed","affected_sboms":[{"sbom_id":"s","document_name":"d"}]}]`,
-			[]VEXStatement{{VEXID: "v", SBOMID: "s", Status: "fixed", AffectedSBOMs: []SBOMLink{{SBOMID: "s", DocumentName: "d"}}}}},
+			"GET", "/api/v1/sboms/" + testID + "/vex", "", nil, "", `[{"vex_id":"v","sbom_id":"s","cve_id":"CVE-1","aliases":["GHSA-1"],"status":"fixed","affected_sboms":[{"sbom_id":"s","document_name":"d"}]}]`,
+			[]VEXStatement{{VEXID: "v", SBOMID: "s", CVEID: "CVE-1", Aliases: []string{"GHSA-1"}, Status: "fixed", AffectedSBOMs: []SBOMLink{{SBOMID: "s", DocumentName: "d"}}}}},
 		{"DownloadSBOM", func(c *Client, ctx context.Context) (any, error) {
 			b, err := c.DownloadSBOM(ctx, testID)
 			return string(b), err
@@ -91,11 +95,20 @@ func TestEndpointContract(t *testing.T) {
 		{"ListVulnerabilities", func(c *Client, ctx context.Context) (any, error) { return c.ListVulnerabilities(ctx, nil) },
 			"GET", "/api/v1/vulnerabilities", "", nil, "", `{"data":[{"vuln_id":"CVE-1"}],"total":1}`,
 			Paginated[Vulnerability]{Data: []Vulnerability{{VulnID: "CVE-1"}}, Total: 1}},
+		{"ListVulnerabilities scope", func(c *Client, ctx context.Context) (any, error) {
+			return c.ListVulnerabilities(ctx, &VulnerabilityListOptions{ListOptions: ListOptions{Page: 2}, VulnerabilityOptions: VulnerabilityOptions{Scope: ScopeDirect}})
+		}, "GET", "/api/v1/vulnerabilities", "page=2&scope=direct", nil, "", `{"data":[],"total":0}`, Paginated[Vulnerability]{Data: []Vulnerability{}}},
+		{"VulnerabilityReportCSV", func(c *Client, ctx context.Context) (any, error) {
+			var b strings.Builder
+			n, err := c.VulnerabilityReportCSV(ctx, &VulnerabilityOptions{Scope: ScopeDirect}, &b)
+			return [2]any{n, b.String()}, err
+		}, "GET", "/api/v1/reports/vulnerabilities", "format=csv&scope=direct", nil, "", "cve_id,vuln_id\nCVE-1,GHSA-1\n",
+			[2]any{int64(28), "cve_id,vuln_id\nCVE-1,GHSA-1\n"}},
 		{"AffectedProjects", func(c *Client, ctx context.Context) (any, error) {
 			return c.AffectedProjects(ctx, "GHSA-abcd-efgh-ijkl")
 		},
-			"GET", "/api/v1/vulnerabilities/GHSA-abcd-efgh-ijkl/affected-projects", "", nil, "", `[{"sbom_id":"s","is_direct":true}]`,
-			[]AffectedProject{{SBOMID: "s", IsDirect: true}}},
+			"GET", "/api/v1/vulnerabilities/GHSA-abcd-efgh-ijkl/affected-projects", "", nil, "", `[{"sbom_id":"s","is_direct":true,"dependency_scope":"direct","dependency_depth":1}]`,
+			[]AffectedProject{{SBOMID: "s", IsDirect: true, DependencyScope: "direct", DependencyDepth: ptr[uint32](1)}}},
 		{"DashboardStats", func(c *Client, ctx context.Context) (any, error) { return c.DashboardStats(ctx) },
 			"GET", "/api/v1/stats/dashboard", "", nil, "", `{"total_sboms":3,"license_breakdown":{"permissive":2}}`,
 			DashboardStats{TotalSBOMs: 3, LicenseBreakdown: map[string]uint64{"permissive": 2}}},
@@ -108,8 +121,8 @@ func TestEndpointContract(t *testing.T) {
 			`{"total_skewed_packages":1,"items":[{"package_name":"net","versions":[{"version":"1","projects":["a"]}]}],"page":1,"page_size":5}`,
 			VersionSkew{TotalSkewedPackages: 1, Items: []VersionSkewItem{{PackageName: "net", Versions: []VersionSkewDetail{{Version: "1", Projects: []string{"a"}}}}}, Page: 1, PageSize: 5}},
 		{"Search", func(c *Client, ctx context.Context) (any, error) { return c.Search(ctx, "log4j", 10) },
-			"GET", "/api/v1/search", "limit=10&q=log4j", nil, "", `{"query":"log4j","packages":[{"package_name":"log4j"}],"total_packages":1}`,
-			SearchResult{Query: "log4j", Packages: []SearchPackage{{PackageName: "log4j"}}, TotalPackages: 1}},
+			"GET", "/api/v1/search", "limit=10&q=log4j", nil, "", `{"query":"log4j","packages":[{"package_name":"log4j"}],"total_packages":1,"vulnerabilities":[{"vuln_id":"GHSA-1","cve_id":"CVE-1","aliases":["CVE-1"]}]}`,
+			SearchResult{Query: "log4j", Packages: []SearchPackage{{PackageName: "log4j"}}, TotalPackages: 1, Vulnerabilities: []SearchVulnerability{{VulnID: "GHSA-1", CVEID: "CVE-1", Aliases: []string{"CVE-1"}}}}},
 		{"SearchPackages", func(c *Client, ctx context.Context) (any, error) { return c.SearchPackages(ctx, "x/net", nil) },
 			"GET", "/api/v1/packages/search", "q=x%2Fnet", nil, "", `{"total_results":1,"items":[{"package_name":"x/net","projects":[{"project_name":"p"}]}],"query":"x/net"}`,
 			PackageSearch{TotalResults: 1, Items: []PackageSearchResult{{PackageName: "x/net", Projects: []PackageProject{{ProjectName: "p"}}}}, Query: "x/net"}},
@@ -124,8 +137,14 @@ func TestEndpointContract(t *testing.T) {
 			"GET", "/api/v1/licenses/compliance", "", nil, "", `[{"license_id":"GPL-3.0","category":"copyleft","sbom_count":2}]`,
 			[]LicenseCompliance{{LicenseID: "GPL-3.0", Category: "copyleft", SBOMCount: 2}}},
 		{"LicenseViolations", func(c *Client, ctx context.Context) (any, error) { return c.LicenseViolations(ctx) },
-			"GET", "/api/v1/projects/license-compliance", "", nil, "", `[{"sbom_id":"s","copyleft_count":1,"violating_licenses":["GPL-3.0"]}]`,
-			[]LicenseViolation{{SBOMID: "s", CopyleftCount: 1, ViolatingLicenses: []string{"GPL-3.0"}}}},
+			"GET", "/api/v1/projects/license-compliance", "", nil, "", `[{"sbom_id":"s","copyleft_count":1,"unapproved_count":2,"violating_licenses":["GPL-3.0"],"package_scopes":{"a":"transitive"}}]`,
+			[]LicenseViolation{{SBOMID: "s", CopyleftCount: 1, UnapprovedCount: 2, ViolatingLicenses: []string{"GPL-3.0"}, PackageScopes: map[string]string{"a": "transitive"}}}},
+		{"LicenseViolationSummaries", func(c *Client, ctx context.Context) (any, error) { return c.LicenseViolationSummaries(ctx) },
+			"GET", "/api/v1/projects/license-compliance", "summary=true", nil, "", `[{"sbom_id":"s","non_compliant_package_count":3,"direct_count":1,"transitive_count":2}]`,
+			[]LicenseViolationSummary{{SBOMID: "s", NonCompliantPackageCount: 3, DirectCount: 1, TransitiveCount: 2}}},
+		{"LicenseSources", func(c *Client, ctx context.Context) (any, error) { return c.LicenseSources(ctx) },
+			"GET", "/api/v1/licenses/sources", "", nil, "", `[{"source":"depsdev+latest","origin":"depsdev","modifiers":["latest"],"resolved":true,"package_count":5,"sbom_count":1,"examples":["x"]}]`,
+			[]LicenseSource{{Source: "depsdev+latest", Origin: "depsdev", Modifiers: []string{"latest"}, Resolved: true, PackageCount: 5, SBOMCount: 1, Examples: []string{"x"}}}},
 		{"LicenseExceptions", func(c *Client, ctx context.Context) (any, error) { return c.LicenseExceptions(ctx) },
 			"GET", "/api/v1/license-exceptions", "", nil, "", `{"version":"1.0.0","blanketExceptions":[{"id":"b","license":"MPL-2.0"}],"exceptions":[{"id":"e","package":"p","license":"GPL"}]}`,
 			LicenseExceptions{Version: "1.0.0", BlanketExceptions: []BlanketLicenseException{{ID: "b", License: "MPL-2.0"}}, Exceptions: []LicenseException{{ID: "e", Package: "p", License: "GPL"}}}},
@@ -146,8 +165,9 @@ func TestEndpointContract(t *testing.T) {
 			return c.ListProjectSBOMs(ctx, "p q", &ListOptions{PageSize: 2})
 		}, "GET", "/api/v1/projects/p%20q/sboms", "page_size=2", nil, "", `{"data":[{"sbom_id":"a"}],"total":1}`,
 			Paginated[SBOM]{Data: []SBOM{{ID: "a"}}, Total: 1}},
-		{"ProjectVulnerabilities", func(c *Client, ctx context.Context) (any, error) { return c.ProjectVulnerabilities(ctx, "p") },
-			"GET", "/api/v1/projects/p/vulnerabilities", "", nil, "", `[{"vuln_id":"CVE-1","affected_sboms":3}]`,
+		{"ProjectVulnerabilities", func(c *Client, ctx context.Context) (any, error) {
+			return c.ProjectVulnerabilities(ctx, "p", &VulnerabilityOptions{Scope: ScopeRoot})
+		}, "GET", "/api/v1/projects/p/vulnerabilities", "scope=root", nil, "", `[{"vuln_id":"CVE-1","affected_sboms":3}]`,
 			[]Vulnerability{{VulnID: "CVE-1", AffectedSBOMs: 3}}},
 		{"ListProjectPackages", func(c *Client, ctx context.Context) (any, error) {
 			return c.ListProjectPackages(ctx, "p", &SearchListOptions{Search: "yaml"})

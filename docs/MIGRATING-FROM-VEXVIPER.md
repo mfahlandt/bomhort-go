@@ -20,7 +20,8 @@ bomhort-go started as VEXViper's `internal/bomhort` package and its `bomhorttest
 | `VEXStatements(ctx, page, pageSize)` (one page) | `ListVEXStatements(ctx, &bomhort.ListOptions{Page: page, PageSize: pageSize})` | `VEXStatements` is now the iterator |
 | `AllVEXStatements(ctx)` | unchanged | |
 | `FindSBOM(ctx, ref)` | unchanged | now also matches uploaded filenames (`pushed/<uuid>-<name>`) and uses `?search=` first |
-| `Healthy`, `Vulnerabilities`, `Dependencies`, `DownloadSBOM`, `UploadVEX`, `BaseURL` | unchanged | |
+| `Vulnerabilities(ctx, id)` | `Vulnerabilities(ctx, id, nil)` | `&bomhort.VulnerabilityOptions{Scope: bomhort.ScopeDirect}` filters by dependency scope (BOMHort ≥ 0.8) |
+| `Healthy`, `Dependencies`, `DownloadSBOM`, `UploadVEX`, `BaseURL` | unchanged | |
 | `WithAPIKey`, `WithServiceToken`, `WithHTTPClient`, `WithRateLimit`, `WithMaxRetries` | unchanged | new: `WithRateLimiter`, `WithUserAgent`, `WithStrictDecoding` |
 | `IsNotFound(err)` | unchanged | new: `IsBadRequest`, `IsUnauthorized`, `IsForbidden`, `IsRateLimited`, `IsUnavailable`, `StatusCode` |
 

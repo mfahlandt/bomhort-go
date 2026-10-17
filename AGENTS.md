@@ -18,7 +18,7 @@ One package plus a test double:
 | `sboms.go` | Health probes, SBOM list/iterate/find, detail, findings, dependencies, licenses, VEX, download, `PatchSBOMSource` |
 | `upload.go` | `Upload`, `UploadSBOM`, `UploadVEX`, `UploadOptions` |
 | `catalog.go` | Fleet-wide vulnerabilities and VEX, stats, search, packages, licenses |
-| `projects.go` | Projects (+ unreleased detail/groups/sub-resources), tags, clusters, namespaces, fleet |
+| `projects.go` | Projects (+ detail/groups/sub-resources), tags, clusters, namespaces, fleet |
 | `bomhorttest/` | Fake api-gateway (`Server`): auth, pagination, filters, uploads, VEX scoping/matching, PATCH, canned routes |
 | `test/integration/` | `//go:build integration`; runs every endpoint against a live BOMHort with strict decoding |
 | `hack/` | `e2e-bomhort.sh` + `docker-compose.e2e.yml`: isolated BOMHort stack on :18080, key `bomhort-go-e2e-key` |
@@ -33,7 +33,7 @@ Source of truth for the API: BOMHort `backend/cmd/api-gateway/main.go` (routes, 
 - **Tooling (via `go run`, not in go.mod):** staticcheck, govulncheck. Docker + docker compose for E2E.
 
 # Architectural Directives
-**API fidelity:** Struct fields and JSON tags match BOMHort exactly; timestamps stay strings as BOMHort sends them. Keep field doc comments with the BOMHort issue (`#350`) and the first release (`>= 0.7.0`) or *unreleased*. Never decode strictly by default — only `WithStrictDecoding()` (used by the integration tests) fails on unknown fields.
+**API fidelity:** Struct fields and JSON tags match BOMHort exactly; timestamps stay strings as BOMHort sends them. Keep field doc comments with the BOMHort issue (`#350`) and the first release (`>= 0.8.0`), or *unreleased* for BOMHort `main` only. Never decode strictly by default — only `WithStrictDecoding()` (used by the integration tests) fails on unknown fields.
 
 **Naming:** `ListX(ctx, *Opts)` = one page (`Paginated[T]`), `X(ctx, *Opts)` = `Seq[T]` iterator over all pages, `AllX` = collected slice. Option structs embed `ListOptions`; `nil` options mean server defaults. Path segments go through `esc` (`url.PathEscape`), queries through `url.Values`.
 
@@ -41,7 +41,7 @@ Source of truth for the API: BOMHort `backend/cmd/api-gateway/main.go` (routes, 
 
 **Concurrency:** `Client`, `RateLimiter` and `bomhorttest.Server` are safe for concurrent use. Run `go test -race ./...` after touching them.
 
-**Compatibility:** Additive changes only for BOMHort additions (new fields/methods). Unreleased BOMHort features are marked *unreleased* and integration-skipped on `404`. Breaking Go API changes need a CHANGELOG entry with migration notes.
+**Compatibility:** Versions follow BOMHort (`vX.Y.*` ↔ BOMHort `X.Y.*`, `docs/COMPATIBILITY.md`). Additive changes only for BOMHort additions (new fields/methods); routes newer than the server are integration-skipped on `404`. Breaking Go API changes need a CHANGELOG entry with migration notes.
 
 **No git history rewrites on `main`.**
 

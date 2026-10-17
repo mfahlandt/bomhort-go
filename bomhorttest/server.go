@@ -199,8 +199,8 @@ func (s *Server) SetReady(ok bool) {
 
 // Handle serves v as JSON with status for "METHOD /path" (exact path, no
 // query), e.g. Handle("GET /api/v1/fleet", 200, []bomhort.FleetCluster{…}).
-// It covers endpoints without built-in behaviour and overrides nothing
-// that is built in.
+// A []byte v is written as is (e.g. a CSV report). It covers endpoints
+// without built-in behaviour and overrides nothing that is built in.
 func (s *Server) Handle(pattern string, status int, v any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -373,17 +373,38 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 func (s *Server) sbomVulns(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if id, _, ok := s.lookup(w, r); ok {
-		writeJSON(w, http.StatusOK, s.resolvedVulns(id))
+	id, _, ok := s.lookup(w, r)
+	if !ok {
+		return
 	}
+	scope := r.URL.Query().Get("scope")
+	switch scope {
+	case "", bomhort.ScopeRoot, bomhort.ScopeDirect, bomhort.ScopeTransitive, bomhort.ScopeUnknown:
+	default:
+		writeError(w, http.StatusBadRequest, "Invalid scope (expected direct, transitive, root or unknown)")
+		return
+	}
+	out := s.resolvedVulns(id)
+	if scope != "" {
+		out = slices.DeleteFunc(out, func(v bomhort.Vulnerability) bool { return v.DependencyScope != scope })
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
+// sbomDeps answers 404 for an unknown SBOM like BOMHort >= 0.8.0 (older
+// gateways answered 200 []).
 func (s *Server) sbomDeps(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if id, _, ok := s.lookup(w, r); ok {
-		writeJSON(w, http.StatusOK, nonNil(s.deps[id]))
+	id, i, ok := s.lookup(w, r)
+	if !ok {
+		return
 	}
+	if i < 0 {
+		writeError(w, http.StatusNotFound, "SBOM not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, nonNil(s.deps[id]))
 }
 
 func (s *Server) sbomLicenses(w http.ResponseWriter, r *http.Request) {
@@ -809,6 +830,11 @@ func (s *Server) cannedHandler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	if !ok {
 		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if raw, isRaw := c.body.([]byte); isRaw {
+		w.WriteHeader(c.status)
+		_, _ = w.Write(raw)
 		return
 	}
 	writeJSON(w, c.status, c.body)

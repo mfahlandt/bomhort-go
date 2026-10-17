@@ -21,7 +21,7 @@ type UploadOptions struct {
 	Cluster   string
 	Namespace string
 	Project   string
-	// Parent names the product the upload belongs to (unreleased).
+	// Parent names the product the upload belongs to (>= 0.8.0).
 	Parent string
 	// Tags are merged with the instance's default tags.
 	Tags []string
