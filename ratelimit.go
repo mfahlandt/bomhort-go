@@ -37,22 +37,20 @@ func (r *RateLimiter) Wait(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
-	d := r.reserve()
+	at, d := r.reserve()
 	if d <= 0 {
 		return nil
 	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
+	if err := sleepCtx(ctx, d); err != nil {
+		r.release(at)
+		return err
 	}
+	return nil
 }
 
-// reserve books the next admission slot and returns how long to wait for it.
-func (r *RateLimiter) reserve() time.Duration {
+// reserve books the next admission slot and returns it with how long to
+// wait for it.
+func (r *RateLimiter) reserve() (time.Time, time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := r.now()
@@ -68,5 +66,17 @@ func (r *RateLimiter) reserve() time.Duration {
 		at = r.slots[len(r.slots)-r.limit].Add(r.window)
 	}
 	r.slots = append(r.slots, at)
-	return at.Sub(now)
+	return at, at.Sub(now)
+}
+
+// release gives back a slot whose request was cancelled before it was sent.
+func (r *RateLimiter) release(at time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := len(r.slots) - 1; i >= 0; i-- {
+		if r.slots[i].Equal(at) {
+			r.slots = append(r.slots[:i], r.slots[i+1:]...)
+			return
+		}
+	}
 }

@@ -77,8 +77,9 @@ func (c *Client) AllSBOMs(ctx context.Context, opts *SBOMListOptions) ([]SBOM, e
 // FindSBOM returns the first SBOM whose ID, document name or source file
 // equals ref. A source file also matches by its base name, and uploaded
 // documents (stored as "pushed/<uuid>-<filename>") by the filename they
-// were uploaded with. It narrows the listing with ?search= when ref is not
-// a UUID and falls back to a full scan otherwise.
+// were uploaded with. A non-UUID ref narrows the listing with ?search=
+// (BOMHort matches it as a substring of document_name and source_file, so
+// every candidate is in that result); a UUID ref scans the full listing.
 func (c *Client) FindSBOM(ctx context.Context, ref string) (SBOM, error) {
 	match := func(s SBOM) bool {
 		return s.ID == ref || s.DocumentName == ref || s.SourceFile == ref ||
@@ -87,17 +88,11 @@ func (c *Client) FindSBOM(ctx context.Context, ref string) (SBOM, error) {
 	if ref == "" {
 		return SBOM{}, fmt.Errorf("bomhort: empty SBOM reference")
 	}
-	if !looksLikeUUID(ref) {
-		for s, err := range c.SBOMs(ctx, &SBOMListOptions{Search: ref}) {
-			if err != nil {
-				return SBOM{}, err
-			}
-			if match(s) {
-				return s, nil
-			}
-		}
+	opts := &SBOMListOptions{Search: ref}
+	if looksLikeUUID(ref) {
+		opts = nil
 	}
-	for s, err := range c.SBOMs(ctx, nil) {
+	for s, err := range c.SBOMs(ctx, opts) {
 		if err != nil {
 			return SBOM{}, err
 		}
