@@ -209,9 +209,12 @@ func (c *Client) decode(data []byte, out any) error {
 	return dec.Decode(out)
 }
 
+// maxRetryAfter caps Retry-After so a proxy cannot park a call for hours.
+const maxRetryAfter = 30 * time.Second
+
 func retryAfter(header string, attempt int) time.Duration {
 	if s, err := strconv.Atoi(strings.TrimSpace(header)); err == nil && s > 0 {
-		return time.Duration(s) * time.Second
+		return min(time.Duration(s)*time.Second, maxRetryAfter)
 	}
 	return time.Duration(1<<attempt) * time.Second
 }

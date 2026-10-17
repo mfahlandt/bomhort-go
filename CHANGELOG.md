@@ -17,6 +17,8 @@ Initial version, extracted from [VEXViper](https://github.com/seebom-labs/VEXVip
 ### Changed
 
 - `Vulnerabilities`, `ProjectVulnerabilities` take a `*VulnerabilityOptions` (pass `nil` for the old behaviour); `ListVulnerabilities` takes `*VulnerabilityListOptions` instead of `*ListOptions`.
+- `FindSBOM` no longer falls back to a full listing walk after a `?search=` miss (BOMHort's search already matches every candidate).
+- `Retry-After` is capped at 30 s; a `RateLimiter` waiter cancelled via context gives its slot back.
 - Typed errors (`APIError`, `IsNotFound`, `IsBadRequest`, `IsUnauthorized`, `IsForbidden`, `IsRateLimited`, `IsUnavailable`, `StatusCode`).
 - Iterator-based pagination (`ListX` / `X` / `AllX`, `Paginate`, `Collect`).
 - Options: API key, service token, HTTP client, user agent, rate limit / shared `RateLimiter`, 429 retries, strict decoding.

@@ -216,6 +216,9 @@ func TestRetryAfterParsing(t *testing.T) {
 	if retryAfter("5", 0) != 5*time.Second || retryAfter(" 2 ", 3) != 2*time.Second {
 		t.Error("seconds")
 	}
+	if retryAfter("3600", 0) != maxRetryAfter {
+		t.Error("cap")
+	}
 	if retryAfter("", 0) != time.Second || retryAfter("Wed, 21 Oct 2015 07:28:00 GMT", 2) != 4*time.Second || retryAfter("-1", 1) != 2*time.Second {
 		t.Error("fallback back-off")
 	}

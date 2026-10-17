@@ -58,7 +58,7 @@ done
 
 WORK="${E2E_WORK:-$ROOT/.e2e}"
 export E2E_SBOM_DIR="$WORK/sboms"
-rm -rf "$WORK"
+rm -rf "$WORK/sboms" "$WORK/logs" "$WORK/integration.log"
 mkdir -p "$E2E_SBOM_DIR/pushed"
 # api-gateway runs as nobody and must create files under SBOM_DIR/pushed.
 chmod -R 0777 "$E2E_SBOM_DIR"

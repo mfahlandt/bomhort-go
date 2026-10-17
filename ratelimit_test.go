@@ -18,23 +18,23 @@ func TestRateLimiterNilAndReserve(t *testing.T) {
 	now := time.Unix(1000, 0)
 	r := NewRateLimiter(2, 10*time.Second)
 	r.now = func() time.Time { return now }
-	if d := r.reserve(); d != 0 {
+	if _, d := r.reserve(); d != 0 {
 		t.Fatalf("1st: %v", d)
 	}
-	if d := r.reserve(); d != 0 {
+	if _, d := r.reserve(); d != 0 {
 		t.Fatalf("2nd: %v", d)
 	}
-	if d := r.reserve(); d != 10*time.Second {
+	if _, d := r.reserve(); d != 10*time.Second {
 		t.Fatalf("3rd must wait a full window, got %v", d)
 	}
 	// Fourth request queues behind the third: 2 per window → +10s again.
-	if d := r.reserve(); d != 10*time.Second {
+	if _, d := r.reserve(); d != 10*time.Second {
 		t.Fatalf("4th: %v", d)
 	}
 	// Time moves past the window: the first two slots expire, but the
 	// reserved ones (at +10s) still count.
 	now = now.Add(11 * time.Second)
-	if d := r.reserve(); d != 9*time.Second {
+	if _, d := r.reserve(); d != 9*time.Second {
 		t.Fatalf("after window: %v", d)
 	}
 	// Default window when none given.
@@ -52,5 +52,9 @@ func TestRateLimiterWaitHonoursContext(t *testing.T) {
 	defer cancel()
 	if err := r.Wait(ctx); err != context.DeadlineExceeded {
 		t.Fatalf("err = %v", err)
+	}
+	// The cancelled waiter gave its slot back: only the first request counts.
+	if len(r.slots) != 1 {
+		t.Fatalf("slots after cancel = %d, want 1", len(r.slots))
 	}
 }
