@@ -82,10 +82,56 @@ If `go` is not on PATH in your shell: `export PATH=$HOME/go/bin:$HOME/sdk/go<ver
 - PRs go to `seebom-labs/bomhort-go` `main` from a feature branch.
 - **Releases:** tag `vX.Y.Z` after bumping `Version` in `bomhort.go` and the CHANGELOG (see `docs/RELEASING.md`); `release.yml` verifies both and publishes the GitHub release. Dependabot (actions, gomod) runs weekly.
 
+# Documentation is published on docs.bomhort.dev
+
+`README.md` and every file listed below under `docs/` are rendered into
+https://docs.bomhort.dev/docs/ecosystem/bomhort-go/ by the BOMHort docs build
+(seebom-labs/BOMHort: `docs/content/docs/ecosystem/bomhort-go/_content.gotmpl`).
+The build takes `main` of this repository, daily and on every BOMHort docs
+deploy. This repository stays the source of truth: never copy these files into
+BOMHort, and fix docs here.
+
+Rules for those files:
+
+- **Start with exactly one `# H1`.** It is removed; the page title comes from
+  the BOMHort adapter. Use `##` and below for everything else.
+- **No front matter.** The files must stay readable on GitHub.
+- **Link relatively** (`docs/VEX.md`, `../CHANGELOG.md`, `#section`). Links
+  between published files become site links. Every other relative link goes to
+  `github.com/seebom-labs/bomhort-go/blob/main/...`, so it must resolve on `main`.
+  Anchors follow GitHub's heading IDs, so renaming a heading breaks inbound
+  `#links`.
+- **No relative images.** They would link to a GitHub page, not an image. Use
+  an absolute `https://raw.githubusercontent.com/...` URL or leave them out.
+- **HTML is rendered as-is** on the docs site. Write Markdown, not HTML.
+- **Moving or renaming a published file breaks the BOMHort docs build**; it
+  fails in production when a listed file is missing. Change the file list in
+  BOMHort in the same breath (PR there first, or right after).
+
+## Adding a page
+
+1. Add the file under `docs/` (one H1, rules above).
+2. Open a PR in seebom-labs/BOMHort that adds one line to
+   `docs/content/docs/ecosystem/bomhort-go/_content.gotmpl`:
+   `(dict "file" "docs/NEW.md" "path" "slug" "title" "Title" "weight" N)`.
+   Prefix how-to guides with `How to: ` and use a `how-to-` slug.
+   Link them from `docs/content/docs/ecosystem/_index.md` under "How-to guides".
+3. Check locally in BOMHort: `make docs-deps && make docs-serve`.
+
+Not published (repository-internal): `AGENTS.md`, `CONTRIBUTING.md`,
+`CHANGELOG.md`, `docs/RELEASING.md`. They are linked to GitHub instead.
+
+## How-to guides
+
+A how-to answers one task from start to finish for a user who already knows
+what BOMHort is: goal in one sentence, prerequisites, numbered steps with
+copy-paste commands, how to verify it worked, and what to do when it doesn't.
+No design rationale; link to the reference or design page instead.
+
 # Boundaries
 - **Always do:** Read the BOMHort source for the endpoint before adding or changing it. Write tests for all new behaviour. Keep `docs/API-COVERAGE.md`, `docs/VEX.md`, `docs/COMPATIBILITY.md`, README and CHANGELOG in sync. Run `make check` before pushing; run `make e2e` when anything that talks to BOMHort changes.
 - **Workflow for every feature/fix:** (1) code, (2) tests (unit + `bomhorttest` + integration when BOMHort interaction changes), (3) docs + CHANGELOG, (4) `make check` green, (5) commit with `-s`, push branch. Open a PR only when asked.
-- **Ask first:** Before adding any dependency, making a breaking change to the exported API, changing `bomhorttest` semantics away from BOMHort's, bumping the minimum Go version, changing the pinned BOMHort ref, or rewriting git history.
+- **Ask first:** Before adding any dependency, making a breaking change to the exported API, changing `bomhorttest` semantics away from BOMHort's, bumping the minimum Go version, changing the pinned BOMHort ref, moving or renaming a file under `docs/` or `README.md` (published on docs.bomhort.dev, see above), or rewriting git history.
 - **Never do:** Never commit secrets or real API keys (the only fixed key is the E2E dummy `bomhort-go-e2e-key`). Never normalise or rewrite PURLs/vuln ids. Never make strict decoding the default. Never add `Co-authored-by` trailers. Never force-push `main`.
 
 # Security Posture
