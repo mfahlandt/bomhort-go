@@ -22,7 +22,7 @@ env:
   # (docs/COMPATIBILITY.md). BOMHORT_PINNED_REF is the commit SHA of
   # BOMHORT_PINNED_VERSION; release.yml checks that a vX.Y.0 client tag
   # matches its X.Y.
-  BOMHORT_PINNED_VERSION: v0.8.0-rc.3
+  BOMHORT_PINNED_VERSION: v0.8.0
   BOMHORT_PINNED_REF: 3a1fa24a493f337aea9c57f29eb2b1a7fb2bdf4f
 permissions:
   contents: read

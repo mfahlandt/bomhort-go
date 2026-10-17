@@ -59,7 +59,7 @@ BOMHORT_SRC=~/src/BOMHort ./hack/e2e-bomhort.sh --keep -run TestVEX   # keep sta
 docker compose -p bomhort-go-e2e -f hack/docker-compose.e2e.yml down -v  # tear down a kept stack
 ```
 
-Published images work too: `BOMHORT_IMAGE_PREFIX=ghcr.io/seebom-labs/bomhort/ BOMHORT_IMAGE_TAG=0.8.0-rc.3`. On failure, compose logs are written to `.e2e/logs/`. SELinux hosts are handled (the bind mount is relabelled).
+Published images work too: `BOMHORT_IMAGE_PREFIX=ghcr.io/seebom-labs/bomhort/ BOMHORT_IMAGE_TAG=0.8.0`. On failure, compose logs are written to `.e2e/logs/`. SELinux hosts are handled (the bind mount is relabelled).
 
 ## API drift detection
 
